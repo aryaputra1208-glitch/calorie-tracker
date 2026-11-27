@@ -435,8 +435,10 @@ function parse(t){const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a<0||b<a)throw 
 const loading=on=>{$('#photo').classList.toggle('busy',on);$('#ptag').textContent=on?'Analyzing…':'Done';$('#ana').disabled=on;
   if(on)$('#items').innerHTML='<div class="skel"></div><div class="skel" style="opacity:.7"></div>'};
 async function analyze(){
-  const hint=$('#hint').value.trim(),code=ls.get('kalori-code','');
-  if(!draft.blob&&!hint&&!draft.thumb){status('Add a photo or describe the food first.',1);return}
+  const code=ls.get('kalori-code','');let hint=$('#hint').value.trim();
+  if(!draft.blob&&!hint){const known=draft.items.filter(i=>i.name.trim()).map(i=>i.name+(i.portion?' ('+i.portion+')':'')).join(', ');
+    if(!known){status(draft.thumb?'Retake the photo to analyze it again, or describe the food in Notes.':'Add a photo or describe the food first.',1);return}
+    hint='Makanan: '+known}
   if(!DEMO&&!code){status('Enter your Access Code in Settings first. You can still add items manually.',1);return}
   if(busy)busy.abort();busy=new AbortController();const sig=busy.signal;
   status('');loading(true);
@@ -450,16 +452,16 @@ ${hint?'Keterangan pengguna (prioritaskan): '+hint+'\n':''}Balas HANYA JSON: {"i
       const content=[];if(img)content.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:img}});content.push({type:'text',text:prompt});
       const res=await fetch(WORKER_URL,{method:'POST',signal:sig,headers:{'Content-Type':'application/json','X-Access-Code':code},body:JSON.stringify({messages:[{role:'user',content}]})});
       if(res.status===401)throw{code:'bad_code'};if(res.status===429)throw{code:'rate_limited'};
-      const r=await res.json();if(!res.ok)throw{code:'api'};
+      const r=await res.json().catch(()=>({}));if(!res.ok)throw{code:'api',status:res.status,msg:String((r.error&&(r.error.message||r.error.type||r.error))||'').slice(0,160)};
       if(r.usage){usage={n:usage.n+1,inT:usage.inT+(r.usage.input_tokens||0),outT:usage.outT+(r.usage.output_tokens||0)};ls.set('kalori-usage',usage);renderUsage()}
-      j=parse((r.content||[]).map(c=>c.text||'').join(''))}
+      try{j=parse((r.content||[]).map(c=>c.text||'').join(''))}catch(_){throw{code:'format'}}}
     if(sig.aborted||!draft)return;
     const items=(Array.isArray(j.items)?j.items:[]).slice(0,20).map(i=>({name:String(i.name||'').slice(0,80),portion:String(i.portion||'').slice(0,60),kcal:num(i.kcal),protein:num(i.protein),carbs:num(i.carbs),fat:num(i.fat)}));
     loading(false);
     if(!items.length){renderItems();status(String(j.note||'No food detected.'),1);return}
     draft.items=items;renderItems();status('');
   }catch(e){if(sig.aborted)return;loading(false);renderItems();
-    status(e&&e.code==='bad_code'?'Wrong Access Code. Check it in Settings.':e&&e.code==='rate_limited'?'Too many requests. Please wait a moment.':'Could not read the AI result. Try again or fill in manually.',1)}
+    const c=e&&e.code;status(c==='bad_code'?'Wrong Access Code. Check it in Settings.':c==='rate_limited'?'Too many requests. Please wait a moment.':c==='api'?'AI error '+e.status+(e.msg?': '+e.msg:'')+'.':c==='format'?'The AI reply was not in the expected format. Try Analyze again.':e instanceof TypeError?'Cannot reach the AI server. Check your connection, or the ALLOWED_ORIGIN setting in Cloudflare.':'Something went wrong. Try again or fill in manually.',1)}
   finally{if(busy&&busy.signal===sig)busy=null}
 }
 async function saveDraft(){
