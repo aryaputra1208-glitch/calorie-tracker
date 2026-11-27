@@ -179,6 +179,8 @@ textarea:focus,select:focus{outline:3px solid rgba(255,79,134,.3)}
 @keyframes sh{to{background-position:-200% 0}}
 .tot{display:flex;justify-content:space-between;align-items:baseline;margin:14px 4px;font-size:17px;font-weight:600}
 .tot b{font-size:28px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.btn.del{width:100%;margin-top:14px;min-height:50px;background:rgba(255,255,255,.7);color:#d63a5b;border:.5px solid var(--edge)}
+.btn.del.arm{background:#e5384f;color:#fff;border-color:#e5384f}
 .demo{font-size:12px;color:var(--tx3);text-align:center;margin:6px 0 0}
 @media(max-width:380px){.ringwrap{grid-template-columns:1fr;justify-items:center}.ring{width:170px;height:170px}.kv{width:100%}}
 @media(hover:none){.mg.hot{transform:scale(1.015)}}
@@ -280,6 +282,7 @@ textarea:focus,select:focus{outline:3px solid rgba(255,79,134,.3)}
   <button class="btn gl" id="addIt" style="width:100%;min-height:46px">+ Add Item</button>
   <div class="tot"><span>Total</span><b id="dtot">0 kcal</b></div>
   <select id="mtype" aria-label="Meal"></select>
+  <button class="btn del" id="del" hidden>Delete Food</button>
 </div>
 
 <script>
@@ -407,6 +410,7 @@ const blank=()=>({name:'',portion:'',kcal:0,protein:0,carbs:0,fat:0});
 function openSheet(m,init){
   draft=m?JSON.parse(JSON.stringify(m)):{date:dk(day),type:autoType(),items:init||[],thumb:null};draft.blob=null;
   $('#hint').value='';status('');$('#shT').textContent=m?'Edit Food':'Add Food';
+  const dl=$('#del');dl.hidden=!m;dl.classList.remove('arm');dl.textContent='Delete Food';clearTimeout(delT);
   $('#mtype').innerHTML=TYPES.map(t=>`<option${t===draft.type?' selected':''}>${t}</option>`).join('');
   setPreview(draft.thumb);const sh=$('#sheet');sh.classList.add('noanim');renderItems();sh.scrollTop=0;
   requestAnimationFrame(()=>requestAnimationFrame(()=>{$('#ov').classList.add('on');sh.classList.add('on');setTimeout(()=>sh.classList.remove('noanim'),700)}));
@@ -478,6 +482,10 @@ $('#ana').addEventListener('click',analyze);
 $('#addIt').addEventListener('click',()=>{draft.items.push(blank());renderItems()});
 $('#cancel').addEventListener('click',closeSheet);$('#ov').addEventListener('click',closeSheet);
 $('#save').addEventListener('click',saveDraft);
+let delT=0;
+$('#del').addEventListener('click',async()=>{const b=$('#del');if(!draft||!draft.id)return;
+  if(!b.classList.contains('arm')){b.classList.add('arm');b.textContent='Tap again to delete';delT=setTimeout(()=>{b.classList.remove('arm');b.textContent='Delete Food'},3000);return}
+  clearTimeout(delT);const id=draft.id;closeSheet();await store.del(id)});
 $('#items').addEventListener('input',e=>{const t=e.target,i=t.dataset.i;if(i==null)return;draft.items[i][t.dataset.k]=t.type==='number'?num(t.value):t.value;updTot()});
 $('#items').addEventListener('click',e=>{const x=e.target.closest('[data-x]');if(x){draft.items.splice(+x.dataset.x,1);renderItems()}});
 $('#log').addEventListener('click',e=>{const r=e.target.closest('[data-e]');if(r){const m=meals.find(m=>m.id===r.dataset.e);if(m)openSheet(m)}});
