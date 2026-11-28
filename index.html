@@ -458,14 +458,15 @@ ${hint?'Keterangan pengguna (prioritaskan): '+hint+'\n':''}Balas HANYA JSON: {"i
       if(res.status===401)throw{code:'bad_code'};if(res.status===429)throw{code:'rate_limited'};
       const r=await res.json().catch(()=>({}));if(!res.ok)throw{code:'api',status:res.status,msg:String((r.error&&(r.error.message||r.error.type||r.error))||'').slice(0,160)};
       if(r.usage){usage={n:usage.n+1,inT:usage.inT+(r.usage.input_tokens||0),outT:usage.outT+(r.usage.output_tokens||0)};ls.set('kalori-usage',usage);renderUsage()}
-      try{j=parse((r.content||[]).map(c=>c.text||'').join(''))}catch(_){throw{code:'format'}}}
+      const tu=(r.content||[]).find(c=>c.type==='tool_use'&&c.input);const txt=(r.content||[]).map(c=>c.text||'').join('');
+      if(tu)j=tu.input;else{try{j=parse(txt)}catch(_){throw{code:'format',why:r.stop_reason==='max_tokens'?'reply was cut off':(txt.trim().slice(0,90)||'empty reply')}}}}
     if(sig.aborted||!draft)return;
     const items=(Array.isArray(j.items)?j.items:[]).slice(0,20).map(i=>({name:String(i.name||'').slice(0,80),portion:String(i.portion||'').slice(0,60),kcal:num(i.kcal),protein:num(i.protein),carbs:num(i.carbs),fat:num(i.fat)}));
     loading(false);
     if(!items.length){renderItems();status(String(j.note||'No food detected.'),1);return}
     draft.items=items;renderItems();status('');
   }catch(e){if(sig.aborted)return;loading(false);renderItems();
-    const c=e&&e.code;status(c==='bad_code'?'Wrong Access Code. Check it in Settings.':c==='rate_limited'?'Too many requests. Please wait a moment.':c==='api'?'AI error '+e.status+(e.msg?': '+e.msg:'')+'.':c==='format'?'The AI reply was not in the expected format. Try Analyze again.':e instanceof TypeError?'Cannot reach the AI server. Check your connection, or the ALLOWED_ORIGIN setting in Cloudflare.':'Something went wrong. Try again or fill in manually.',1)}
+    const c=e&&e.code;status(c==='bad_code'?'Wrong Access Code. Check it in Settings.':c==='rate_limited'?'Too many requests. Please wait a moment.':c==='api'?'AI error '+e.status+(e.msg?': '+e.msg:'')+'.':c==='format'?'The AI reply was not in the expected format ('+e.why+'). Try Analyze again.':e instanceof TypeError?'Cannot reach the AI server. Check your connection, or the ALLOWED_ORIGIN setting in Cloudflare.':'Something went wrong. Try again or fill in manually.',1)}
   finally{if(busy&&busy.signal===sig)busy=null}
 }
 async function saveDraft(){
